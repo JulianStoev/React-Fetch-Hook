@@ -1,5 +1,5 @@
 // React Fetch Hook v1.0
-// https://github.com/JulianStoev/react-fetch-hook
+// https://github.com/JulianStoev/ReactFetchHook
 
 import { useCallback } from "react";
 
