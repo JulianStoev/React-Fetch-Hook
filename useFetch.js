@@ -1,4 +1,4 @@
-// React Fetch Hook v1.0
+// React Fetch Hook v1.1
 // https://github.com/JulianStoev/ReactFetchHook
 
 import { useCallback } from "react";
@@ -24,12 +24,12 @@ export function useFetch() {
         .catch(error => console.error('[Fetch error]', error));
   }, []);
 
-  const post    = useCallback(data => go(data, 'POST'), [go]);
-  const put     = useCallback(data => go(data, 'PUT'), [go]);
-  const get     = useCallback(data => go(data, 'GET'), [go]);
-  const head    = useCallback(data => go(data, 'HEAD'), [go]);
-  const options = useCallback(data => go(data, 'OPTIONS'), [go]);
-  const del     = useCallback(data => go(data, 'DELETE'), [go]);
+  const post    = data => go(data, 'POST');
+  const put     = data => go(data, 'PUT');
+  const get     = data => go(data, 'GET');
+  const head    = data => go(data, 'HEAD');
+  const options = data => go(data, 'OPTIONS');
+  const del     = data => go(data, 'DELETE');
 
   return {
     post,
