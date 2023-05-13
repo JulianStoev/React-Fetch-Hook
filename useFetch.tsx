@@ -34,41 +34,49 @@ export function useFetch() {
             (method === 'GET') ? data.uri += '?' + new URLSearchParams(data.data) : data['toSend'].body = JSON.stringify(data.data);
         }
 
-        return new Promise(async (resolve, reject) => {
-            try {
-                await fetch(data.uri, data['toSend'])
-                    .then(response => response.ok ? response.text() : Promise.reject(response))
-                    .then(response => {
-                        // convert the response to text first to avoid error in case of no response when parsing directly to json
-                        const json = (response ? JSON.parse(response) : {});
-                        resolve(json);
-                        return json;
-                    });
-            } catch(err) {
-                if (data.errors === false) {
-                    console.error('[Fetch error]', err);
-                } else {
-                    const response = {
-                        status: 0,
-                        statusText: '',
-                        body: err
-                    };
-
-                    if (err instanceof Response) {
-                        let body = await err.text();
-                        try {
-                            // safely check if valid json
-                            body = JSON.parse(body);
-                        } catch {}
-                      
-                        response.status = err.status;
-                        response.statusText = err.statusText;
-                        response.body = body;
+        return new Promise((resolve, reject) => {
+            const fetchFn = async (): Promise<any> => {
+                try {
+                    await fetch(url + data.uri, data['toSend'])
+                        .then(response => response.ok ? response.text() : Promise.reject(response))
+                        .then(response => {
+                            // convert the response to text first to avoid error in case of no response when parsing directly to json
+                            const json = (response ? JSON.parse(response) : {});
+                            resolve(json);
+                            return json;
+                        });
+                } catch(err) {
+                    if (data.errors === false) {
+                        console.error('[Fetch error]', err);
+                    } else {
+                        const response = {
+                            status: 0,
+                            statusText: '',
+                            body: err
+                        };
+        
+                        if (err instanceof Response) {
+                            const parseTextFn = async (errror: Response) => {
+                                let body = await errror.text();
+                                try {
+                                    // safely check if valid json
+                                    body = JSON.parse(body);
+                                } catch(err) {
+                                    console.error(err);
+                                }
+            
+                                response.status = errror.status;
+                                response.statusText = errror.statusText;
+                                response.body = body;
+                            };
+                            parseTextFn(err);
+                        }
+        
+                        reject(response);
                     }
-
-                    reject(response);
                 }
-            }
+            };
+            fetchFn();
         });
     }, [ generateRandomString ]);
 
