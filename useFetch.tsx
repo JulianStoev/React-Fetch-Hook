@@ -1,18 +1,18 @@
-// React Fetch Hook v1.2
+// React Fetch Hook v1.3
 // https://github.com/JulianStoev/ReactFetchHook
 
 import { useCallback } from "react";
 
-type fetchMethod = 'POST' | 'PUT' | 'GET' | 'PATCH' | 'HEAD' | 'OPTIONS' | 'DELETE';
+type FetchMethod = 'POST' | 'PUT' | 'GET' | 'PATCH' | 'HEAD' | 'OPTIONS' | 'DELETE';
 
-interface fetchRequest {
+interface FetchRequestInterface {
     urlencoded?: boolean; // used for file uploads and formData, defaults to json
     data?: {[name: string]: any | string}; // data object to be send to the backend
     errors?: boolean; // pass true if you want to consume the fetch errors where you are calling it
     uri: string;
 }
 
-export interface ajaxErrorResponse<bodyType> {
+export interface AjaxErrorResponse<bodyType> {
     status: number;
     statusText: string;
     body: bodyType;
@@ -20,73 +20,90 @@ export interface ajaxErrorResponse<bodyType> {
 
 export function useFetch() {
 
-    const go = useCallback((data: fetchRequest, method: fetchMethod): Promise<any> => {
-        
-        data['toSend'] = {
+    const buildUrl = useCallback((data: FetchRequestInterface, method: FetchMethod): string => {
+        // build your URL with env if needed
+        const url = API_URL;
+
+        if (data.data && method === 'GET') {
+            data.uri += '?' + new URLSearchParams(data.data);
+        }
+        return url + data.uri;
+    }, []);
+
+    const buildSendData = useCallback((data: FetchRequestInterface, method: FetchMethod): RequestInit => {
+        const toSend: RequestInit = {
             method: method,
             mode: 'cors',
+            body: undefined,
+            // use interceptor for more headers
             headers: new Headers({
                 'Content-Type': (data.urlencoded ? 'application/x-www-form-urlencoded' : 'application/json')
             })
         };
 
-        if (data.data) {
-            (method === 'GET') ? data.uri += '?' + new URLSearchParams(data.data) : data['toSend'].body = JSON.stringify(data.data);
+        if (data.data && method !== 'GET') {
+            toSend.body = JSON.stringify(data.data);
         }
 
+        return toSend;
+    }, []);
+
+    const buildError = useCallback(async (err: any): Promise<any> => {
+        const response = {
+            status: 0,
+            statusText: '',
+            body: err
+        };
+
+        if (err instanceof Response) {
+            let body = await err.text();
+            try {
+                // safely check if valid json
+                body = JSON.parse(body);
+            } catch(err) {
+                console.error('[Parsing request error', err);
+            }
+            response.status = err.status;
+            response.statusText = err.statusText;
+            response.body = body;
+        }
+
+        return response;
+    }, []);
+
+    const startRequest = useCallback((data: FetchRequestInterface, method: FetchMethod): Promise<any> => {
+        const url = buildUrl(data, method);
+
         return new Promise((resolve, reject) => {
-            const fetchFn = async (): Promise<any> => {
+
+            const fetchFn = async (): Promise<void> => {
+                // start the request
                 try {
-                    await fetch(url + data.uri, data['toSend'])
+                    await fetch(url, buildSendData(data, method))
                         .then(response => response.ok ? response.text() : Promise.reject(response))
                         .then(response => {
                             // convert the response to text first to avoid error in case of no response when parsing directly to json
                             const json = (response ? JSON.parse(response) : {});
                             resolve(json);
-                            return json;
                         });
-                } catch(err) {
-                    if (data.errors === false) {
-                        console.error('[Fetch error]', err);
-                    } else {
-                        const response = {
-                            status: 0,
-                            statusText: '',
-                            body: err
-                        };
-        
-                        if (err instanceof Response) {
-                            const parseTextFn = async (errror: Response) => {
-                                let body = await errror.text();
-                                try {
-                                    // safely check if valid json
-                                    body = JSON.parse(body);
-                                } catch(err) {
-                                    console.error(err);
-                                }
-            
-                                response.status = errror.status;
-                                response.statusText = errror.statusText;
-                                response.body = body;
-                            };
-                            parseTextFn(err);
-                        }
-        
-                        reject(response);
-                    }
+                } catch(err: any) {
+                    const response = await buildError(err);
+                    reject(response);
                 }
             };
-            fetchFn();
-        });
-    }, [ generateRandomString ]);
 
-    const post      = useCallback((data: fetchRequest) => go(data, 'POST'), [go]);
-    const put       = useCallback((data: fetchRequest) => go(data, 'PUT'), [go]);
-    const get       = useCallback((data: fetchRequest) => go(data, 'GET'), [go]);
-    const patch     = useCallback((data: fetchRequest) => go(data, 'PATCH'), [go]);
-    const head      = useCallback((data: fetchRequest) => go(data, 'HEAD'), [go]);
-    const options   = useCallback((data: fetchRequest) => go(data, 'OPTIONS'), [go]);
-    const del       = useCallback((data: fetchRequest) => go(data, 'DELETE'), [go]);
+            fetchFn();
+
+        });
+    }, [buildUrl, buildSendData, buildError]);
+
+    const post      = useCallback((data: FetchRequestInterface) => startRequest(data, 'POST'), [startRequest]);
+    const put       = useCallback((data: FetchRequestInterface) => startRequest(data, 'PUT'), [startRequest]);
+    const get       = useCallback((data: FetchRequestInterface) => startRequest(data, 'GET'), [startRequest]);
+    const patch     = useCallback((data: FetchRequestInterface) => startRequest(data, 'PATCH'), [startRequest]);
+    const head      = useCallback((data: FetchRequestInterface) => startRequest(data, 'HEAD'), [startRequest]);
+    const options   = useCallback((data: FetchRequestInterface) => startRequest(data, 'OPTIONS'), [startRequest]);
+    const del       = useCallback((data: FetchRequestInterface) => startRequest(data, 'DELETE'), [startRequest]);
 
     return {
         post,
@@ -97,5 +114,4 @@ export function useFetch() {
         options,
         del
     }
-
 }
